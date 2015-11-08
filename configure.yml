@@ -1,11 +1,21 @@
 ---
 - hosts: all
   sudo: yes
+  serial: 1
   vars:
     region: us-west-2
 
   tasks:
     - ec2_facts:
+
+    - name: Deregister EC2 instance from ELB
+      become: no
+      local_action:
+        module: ec2_elb
+        region: "{{ region }}"
+        instance_id: "{{ ansible_ec2_instance_id }}"
+        state: absent
+        wait: yes
 
     - name: Ensure packages are present
       apt: name={{ item }}  state=present update_cache=yes
@@ -38,3 +48,4 @@
         ec2_elbs: ["lazyapp"]
         instance_id: "{{ ansible_ec2_instance_id }}"
         state: present
+        wait: yes

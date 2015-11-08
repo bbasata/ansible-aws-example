@@ -59,6 +59,7 @@
     - name: Ensure load balancer exists
       ec2_elb_lb:
         region: "{{ region }}"
+        connection_draining_timeout: 60
         name: lazyapp
         security_group_ids: ["{{ elb_security_group.group_id }}"]
         state: present
