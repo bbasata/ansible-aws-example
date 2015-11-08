@@ -1,0 +1,40 @@
+---
+- hosts: all
+  sudo: yes
+  vars:
+    region: us-west-2
+
+  tasks:
+    - ec2_facts:
+
+    - name: Ensure packages are present
+      apt: name={{ item }}  state=present update_cache=yes
+      with_items:
+        - git
+        - ruby
+
+    - name: Ensure ruby gems are present
+      gem: name=rack state=present user_install=no
+
+    - name: Clone lazyapp
+      git:
+        repo: https://github.com/bbasata/lazyapp.git
+        dest: /opt/lazyapp
+
+    - name: Stop lazyapp
+      shell: killall -9 rackup
+      failed_when: false
+
+    - name: Start lazyapp
+      shell: rackup --daemonize --host 0.0.0.0
+      args:
+        chdir: /opt/lazyapp
+
+    - name: Register instance with ELB
+      become: no
+      local_action:
+        module: ec2_elb
+        region: "{{ region }}"
+        ec2_elbs: ["lazyapp"]
+        instance_id: "{{ ansible_ec2_instance_id }}"
+        state: present

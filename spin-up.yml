@@ -1,0 +1,78 @@
+---
+- hosts: localhost
+  connection: local
+  vars:
+    region: us-west-2
+
+  tasks:
+    - name: Ensure ELB security group exists
+      ec2_group:
+        region: "{{ region }}"
+        name: lazyapp-elb
+        description: lazyapp-elb
+        rules:
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: 0.0.0.0/0
+        rules_egress:
+          - proto: tcp
+            from_port: 0
+            to_port: 65535
+            cidr_ip: 0.0.0.0/0
+      register: elb_security_group
+
+    - name: Ensure security group exists
+      ec2_group:
+        region: "{{ region }}"
+        name: lazyapp
+        description: lazyapp
+        rules:
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 0.0.0.0/0
+          - proto: tcp
+            from_port: 9292
+            to_port: 9292
+            group_id: "{{ elb_security_group.group_id }}"
+        rules_egress:
+          - proto: tcp
+            from_port: 0
+            to_port: 65535
+            cidr_ip: 0.0.0.0/0
+      register: security_group
+
+    - name: Ensure EC2 instances exist
+      ec2:
+        region: "{{ region }}"
+        image: ami-5189a661
+        type: t2.micro
+        zone: us-west-2b
+        group_id: "{{ security_group.group_id }}"
+        key_name: pistachio
+        instance_tags:
+          Name: lazyapp
+        count_tag: Name
+        exact_count: 2
+
+    - name: Ensure load balancer exists
+      ec2_elb_lb:
+        region: "{{ region }}"
+        name: lazyapp
+        security_group_ids: ["{{ elb_security_group.group_id }}"]
+        state: present
+        zones: ["us-west-2b"]
+        listeners:
+          - protocol: http
+            load_balancer_port: 80
+            instance_port: 9292
+        health_check:
+          ping_protocol: http
+          ping_port: 9292
+          ping_path: "/"
+          response_timeout: 5
+          interval: 30
+          unhealthy_threshold: 2
+          healthy_threshold: 2
+
